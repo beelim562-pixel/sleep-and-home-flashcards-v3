@@ -349,6 +349,12 @@
     .picker-opt.where { border-color: #3498DB; }
     .picker-opt.when { border-color: #27AE60; }
     .picker-opt img { height: 36px; width: 64px; object-fit: cover; border-radius: 8px; }
+    .type-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .type-row input {
+      flex: 1; min-height: 48px; font-size: 1.2rem; font-weight: 800;
+      font-family: inherit; border: 4px solid #5C3A21; border-radius: 12px; padding: 6px 10px;
+    }
+    .type-row button { min-height: 48px; min-width: 72px; }
   </style>
 </head>
 <body>
@@ -388,11 +394,18 @@
       <span>.</span>
     </div>
     <p id="sent-full" style="margin-top:14px;font-weight:800;font-size:1.15rem;text-align:center;"></p>
-    <button class="speak-btn" type="button" onclick="resetSentence()" style="background:#3498DB;margin-top:12px;">🔄 Reset</button>
+    <div class="row" style="margin-top:12px;">
+      <button class="speak-btn" type="button" onclick="speakSentence()">🔊 Read aloud the sentence</button>
+      <button class="speak-btn" type="button" onclick="resetSentence()" style="background:#3498DB;">🔄 Reset</button>
+    </div>
   </div>
   <div class="picker-mask" id="picker-mask" onclick="if(event.target===this) closePicker()">
     <div class="picker-sheet">
       <div class="picker-title" id="picker-title"></div>
+      <div class="type-row">
+        <input id="picker-type" type="text" enterkeyhint="done" autocomplete="off" placeholder="Type…" onkeydown="if(event.key==='Enter'){event.preventDefault();applyTyped();}">
+        <button type="button" class="speak-btn" style="margin-top:0;" onclick="applyTyped()">OK</button>
+      </div>
       <div id="picker-list"></div>
     </div>
   </div>
@@ -899,37 +912,71 @@
       if (c.pic === "zh") return c.zh;
       return c.emoji || "";
     }
+    let pickerCat = "what";
     function openPicker(cat) {
+      pickerCat = cat;
       const titles = { what: "What do you want to do?", where: "Where do you want to do this?", when: "When do you want to do this?" };
       document.getElementById("picker-title").textContent = titles[cat];
+      const inp = document.getElementById("picker-type");
+      inp.value = "";
+      inp.placeholder = "Type " + cat + "…";
       const list = document.getElementById("picker-list");
       list.innerHTML = CARDS.filter(c => c.cat === cat).map((c, idx) =>
         `<button type="button" class="picker-opt ${cat}" onclick="pickSent('${cat}', ${idx})"><span>${c.word}</span>${cardThumb(c)}</button>`
       ).join("");
       document.getElementById("picker-mask").classList.add("show");
+      setTimeout(() => inp.focus(), 50);
     }
-    function closePicker() {
-      const m = document.getElementById("picker-mask");
-      if (m) m.classList.remove("show");
+    function applyTyped() {
+      const raw = (document.getElementById("picker-type").value || "").trim();
+      if (!raw) return;
+      const cat = pickerCat;
+      const hit = CARDS.find(c => c.cat === cat && c.word.toLowerCase() === raw.toLowerCase());
+      fillSent(cat, hit || { word: raw, pic: "none" });
     }
-    function pickSent(cat, idx) {
-      const c = CARDS.filter(x => x.cat === cat)[idx];
-      if (!c) return;
+    function fillSent(cat, c) {
       sentPick[cat] = c;
       const slot = document.getElementById("slot-" + cat);
       slot.textContent = c.word;
       slot.classList.add("filled");
       const pic = document.getElementById("sent-pic-" + cat);
       pic.innerHTML = cardThumb(c);
-      pic.classList.add("on");
+      pic.classList.toggle("on", !!cardThumb(c));
       pic.classList.remove("pop");
       void pic.offsetWidth;
       pic.classList.add("pop");
       closePicker();
+      updateSentFull();
+    }
+    function pickSent(cat, idx) {
+      const c = CARDS.filter(x => x.cat === cat)[idx];
+      if (!c) return;
+      fillSent(cat, c);
+    }
+    function updateSentFull() {
       const w = sentPick.what, r = sentPick.where, n = sentPick.when;
       const full = document.getElementById("sent-full");
       if (w && r && n) full.textContent = "I want to " + w.word + " " + r.word + " " + n.word + ".";
       else full.textContent = "";
+    }
+    function speakSentence() {
+      if (!("speechSynthesis" in window)) return;
+      const w = sentPick.what, r = sentPick.where, n = sentPick.when;
+      const text = (w && r && n)
+        ? "I want to " + w.word + " " + r.word + " " + n.word + "."
+        : "I want to " + [w, r, n].filter(Boolean).map(x => x.word).join(" ") + ".";
+      if (!text.replace(/I want to \.?/i, "").trim()) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-GB";
+      const v = britishVoice();
+      if (v) u.voice = v;
+      u.rate = 0.85;
+      window.speechSynthesis.speak(u);
+    }
+    function closePicker() {
+      const m = document.getElementById("picker-mask");
+      if (m) m.classList.remove("show");
     }
     function cellPic(c) {
       if (playMode !== "picture" || !c) return "";
