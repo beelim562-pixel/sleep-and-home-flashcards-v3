@@ -304,7 +304,17 @@
       width: min(28vw, 200px); aspect-ratio: 16 / 9;
       border: 4px dashed #C4B5A5; border-radius: 16px;
       background: #fff; display: flex; align-items: center; justify-content: center;
-      font-size: 2.8rem; overflow: hidden;
+      font-size: 2.8rem; overflow: hidden; position: relative;
+    }
+    .sent-pic-slot canvas.draw-cv {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      touch-action: none; cursor: crosshair; border-radius: 12px;
+    }
+    .draw-brush {
+      position: absolute; top: 4px; right: 4px; z-index: 2;
+      min-width: 44px; min-height: 44px; width: 44px; padding: 0;
+      border: 3px solid #5C3A21; border-radius: 12px; background: #FFD166;
+      font-size: 1.35rem; cursor: pointer;
     }
     .sent-pic-slot.on { border-style: solid; }
     .sent-pic-slot.what.on { border-color: #8E44AD; }
@@ -940,13 +950,65 @@
       slot.textContent = c.word;
       slot.classList.add("filled");
       const pic = document.getElementById("sent-pic-" + cat);
-      pic.innerHTML = cardThumb(c);
-      pic.classList.toggle("on", !!cardThumb(c));
+      const thumb = cardThumb(c);
+      if (thumb) {
+        pic.innerHTML = thumb;
+        pic.classList.add("on");
+      } else {
+        pic.innerHTML = `<canvas class="draw-cv" width="320" height="180"></canvas><button type="button" class="draw-brush" aria-label="Draw">🖌️</button>`;
+        pic.classList.remove("on");
+        setupDrawPad(pic);
+      }
       pic.classList.remove("pop");
       void pic.offsetWidth;
       pic.classList.add("pop");
       closePicker();
       updateSentFull();
+    }
+    function setupDrawPad(pic) {
+      const cv = pic.querySelector("canvas");
+      if (!cv) return;
+      const r = pic.getBoundingClientRect();
+      cv.width = Math.max(120, Math.floor(r.width));
+      cv.height = Math.max(68, Math.floor(r.height));
+      const ctx = cv.getContext("2d");
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#2C1810";
+      ctx.lineWidth = 4;
+      let drawing = false;
+      function pos(e) {
+        const b = cv.getBoundingClientRect();
+        const x = (e.clientX - b.left) * (cv.width / b.width);
+        const y = (e.clientY - b.top) * (cv.height / b.height);
+        return { x, y };
+      }
+      function inside(e) {
+        const b = cv.getBoundingClientRect();
+        return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom;
+      }
+      cv.addEventListener("pointerdown", (e) => {
+        if (!inside(e)) return;
+        e.preventDefault();
+        cv.setPointerCapture(e.pointerId);
+        drawing = true;
+        const p = pos(e);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      });
+      cv.addEventListener("pointermove", (e) => {
+        if (!drawing) return;
+        if (!inside(e)) { drawing = false; return; }
+        const p = pos(e);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      });
+      const stop = () => { drawing = false; };
+      cv.addEventListener("pointerup", stop);
+      cv.addEventListener("pointercancel", stop);
+      cv.addEventListener("pointerleave", stop);
     }
     function pickSent(cat, idx) {
       const c = CARDS.filter(x => x.cat === cat)[idx];
