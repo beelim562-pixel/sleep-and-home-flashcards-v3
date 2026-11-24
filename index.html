@@ -294,6 +294,61 @@
     .word-row.when { border-color: #27AE60; }
     .word-row .row-pic { font-size: 2.4rem; margin-left: 10px; }
     .word-row .row-pic img { width: 72px; height: 40px; object-fit: cover; border-radius: 8px; }
+    #sent-view { display: none; width: min(96vw, 860px); flex-direction: column; align-items: center; }
+    #sent-view.show { display: flex; }
+    .sent-pics {
+      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+      min-height: 110px; margin: 8px 0 16px; width: 100%;
+    }
+    .sent-pic-slot {
+      width: min(28vw, 200px); aspect-ratio: 16 / 9;
+      border: 4px dashed #C4B5A5; border-radius: 16px;
+      background: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 2.8rem; overflow: hidden;
+    }
+    .sent-pic-slot.on { border-style: solid; }
+    .sent-pic-slot.what.on { border-color: #8E44AD; }
+    .sent-pic-slot.where.on { border-color: #3498DB; }
+    .sent-pic-slot.when.on { border-color: #27AE60; }
+    .sent-pic-slot.pop { animation: sentPop .35s ease; }
+    .sent-pic-slot img { width: 100%; height: 100%; object-fit: cover; }
+    @keyframes sentPop { 0% { transform: scale(0.4); opacity: 0; } 80% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+    .sent-line {
+      display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+      gap: 8px; font-size: clamp(1.3rem, 4.2vw, 2rem); font-weight: 900;
+    }
+    .sent-slot {
+      min-height: 52px; min-width: 110px; padding: 8px 14px;
+      border-radius: 14px; border: 4px dashed #999; background: #fff;
+      font-family: inherit; font-weight: 900; font-size: inherit;
+      cursor: pointer;
+    }
+    .sent-slot.what { color: #8E44AD; border-color: #8E44AD; }
+    .sent-slot.where { color: #3498DB; border-color: #3498DB; }
+    .sent-slot.when { color: #27AE60; border-color: #27AE60; }
+    .sent-slot.filled { border-style: solid; background: #fff; }
+    .picker-mask {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.35);
+      z-index: 40; align-items: flex-end; justify-content: center;
+    }
+    .picker-mask.show { display: flex; }
+    .picker-sheet {
+      width: min(96vw, 520px); max-height: 62dvh; overflow-y: auto;
+      background: #FFF8F0; border-radius: 24px 24px 0 0;
+      padding: 12px 12px 24px; -webkit-overflow-scrolling: touch;
+    }
+    .picker-title { text-align: center; font-weight: 900; margin: 4px 0 10px; }
+    .picker-opt {
+      width: 100%; min-height: 56px; margin: 0 0 8px;
+      border-radius: 14px; border: 4px solid #5C3A21; background: #fff;
+      font-family: inherit; font-weight: 900; font-size: 1.35rem;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 14px; cursor: pointer;
+    }
+    .picker-opt.what { border-color: #8E44AD; }
+    .picker-opt.where { border-color: #3498DB; }
+    .picker-opt.when { border-color: #27AE60; }
+    .picker-opt img { height: 36px; width: 64px; object-fit: cover; border-radius: 8px; }
   </style>
 </head>
 <body>
@@ -306,6 +361,7 @@
     <button type="button" class="home-circle home-when" onclick="openCat('when')">When?<span class="home-sub">do you want to do this?</span></button>
     </div>
     <button type="button" class="view-all-btn" onclick="openAllWords()">View all words</button>
+    <button type="button" class="view-all-btn" onclick="openSentence()" style="background:#8E44AD;border-color:#5B2C6F;">Build sentence challenge</button>
   </div>
   <div id="all-view">
     <button type="button" class="back-home" onclick="goHome()">← Home</button>
@@ -314,6 +370,30 @@
     </div>
     <div style="width:100%; overflow-x:auto;">
       <table class="all-table" id="all-table"></table>
+    </div>
+  </div>
+  <div id="sent-view">
+    <button type="button" class="back-home" onclick="goHome()">← Home</button>
+    <h2 style="margin:4px 0 8px;">I want to …</h2>
+    <div class="sent-pics" id="sent-pics">
+      <div class="sent-pic-slot what" id="sent-pic-what"></div>
+      <div class="sent-pic-slot where" id="sent-pic-where"></div>
+      <div class="sent-pic-slot when" id="sent-pic-when"></div>
+    </div>
+    <div class="sent-line">
+      <span>I want to</span>
+      <button type="button" class="sent-slot what" id="slot-what" onclick="openPicker('what')">what</button>
+      <button type="button" class="sent-slot where" id="slot-where" onclick="openPicker('where')">where</button>
+      <button type="button" class="sent-slot when" id="slot-when" onclick="openPicker('when')">when</button>
+      <span>.</span>
+    </div>
+    <p id="sent-full" style="margin-top:14px;font-weight:800;font-size:1.15rem;text-align:center;"></p>
+    <button class="speak-btn" type="button" onclick="resetSentence()" style="background:#3498DB;margin-top:12px;">🔄 Reset</button>
+  </div>
+  <div class="picker-mask" id="picker-mask" onclick="if(event.target===this) closePicker()">
+    <div class="picker-sheet">
+      <div class="picker-title" id="picker-title"></div>
+      <div id="picker-list"></div>
     </div>
   </div>
   <div id="list-view">
@@ -770,6 +850,9 @@
       document.getElementById("list-view").classList.remove("show");
       const all = document.getElementById("all-view");
       if (all) all.classList.remove("show");
+      const sv = document.getElementById("sent-view");
+      if (sv) sv.classList.remove("show");
+      closePicker();
       deck = CARDS.slice();
       i = 0;
       picOut = false;
@@ -782,6 +865,71 @@
       const ap = document.getElementById("all-pic-btn");
       if (ap) ap.classList.toggle("mode-on", playMode === "picture");
       renderAllTable();
+    }
+    let sentPick = { what: null, where: null, when: null };
+    function openSentence() {
+      document.getElementById("home-view").style.display = "none";
+      document.getElementById("play-view").classList.remove("show");
+      document.getElementById("list-view").classList.remove("show");
+      const all = document.getElementById("all-view");
+      if (all) all.classList.remove("show");
+      document.getElementById("sent-view").classList.add("show");
+      resetSentence();
+    }
+    function resetSentence() {
+      sentPick = { what: null, where: null, when: null };
+      ["what", "where", "when"].forEach(cat => {
+        const slot = document.getElementById("slot-" + cat);
+        if (slot) {
+          slot.textContent = cat;
+          slot.classList.remove("filled");
+        }
+        const pic = document.getElementById("sent-pic-" + cat);
+        if (pic) {
+          pic.innerHTML = "";
+          pic.classList.remove("on", "pop");
+        }
+      });
+      const full = document.getElementById("sent-full");
+      if (full) full.textContent = "";
+    }
+    function cardThumb(c) {
+      if (!c) return "";
+      if (c.pic === "photo") return `<img alt="" src="${c.src}">`;
+      if (c.pic === "zh") return c.zh;
+      return c.emoji || "";
+    }
+    function openPicker(cat) {
+      const titles = { what: "What do you want to do?", where: "Where do you want to do this?", when: "When do you want to do this?" };
+      document.getElementById("picker-title").textContent = titles[cat];
+      const list = document.getElementById("picker-list");
+      list.innerHTML = CARDS.filter(c => c.cat === cat).map((c, idx) =>
+        `<button type="button" class="picker-opt ${cat}" onclick="pickSent('${cat}', ${idx})"><span>${c.word}</span>${cardThumb(c)}</button>`
+      ).join("");
+      document.getElementById("picker-mask").classList.add("show");
+    }
+    function closePicker() {
+      const m = document.getElementById("picker-mask");
+      if (m) m.classList.remove("show");
+    }
+    function pickSent(cat, idx) {
+      const c = CARDS.filter(x => x.cat === cat)[idx];
+      if (!c) return;
+      sentPick[cat] = c;
+      const slot = document.getElementById("slot-" + cat);
+      slot.textContent = c.word;
+      slot.classList.add("filled");
+      const pic = document.getElementById("sent-pic-" + cat);
+      pic.innerHTML = cardThumb(c);
+      pic.classList.add("on");
+      pic.classList.remove("pop");
+      void pic.offsetWidth;
+      pic.classList.add("pop");
+      closePicker();
+      const w = sentPick.what, r = sentPick.where, n = sentPick.when;
+      const full = document.getElementById("sent-full");
+      if (w && r && n) full.textContent = "I want to " + w.word + " " + r.word + " " + n.word + ".";
+      else full.textContent = "";
     }
     function cellPic(c) {
       if (playMode !== "picture" || !c) return "";
