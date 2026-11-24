@@ -305,17 +305,20 @@
       border: 4px dashed #C4B5A5; border-radius: 16px;
       background: #fff; display: flex; align-items: center; justify-content: center;
       font-size: 2.8rem; overflow: hidden; position: relative;
+ }
+ .sent-pic-slot canvas.draw-cv {
+ position: absolute; inset: 0; width: 100%; height: 100%;
+ touch-action: none; cursor: crosshair; border-radius: 12px;
+ }
+    .sent-pic-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .draw-tools { display: none; gap: 6px; min-height: 36px; }
+    .draw-tools.show { display: flex; }
+    .draw-tools button {
+      min-width: 36px; min-height: 36px; width: 36px; padding: 0;
+      border: 2px solid #5C3A21; border-radius: 10px; background: #fff;
+      font-size: 1.05rem; cursor: pointer;
     }
-    .sent-pic-slot canvas.draw-cv {
-      position: absolute; inset: 0; width: 100%; height: 100%;
-      touch-action: none; cursor: crosshair; border-radius: 12px;
-    }
-    .draw-brush {
-      position: absolute; top: 4px; right: 4px; z-index: 2;
-      min-width: 44px; min-height: 44px; width: 44px; padding: 0;
-      border: 3px solid #5C3A21; border-radius: 12px; background: #FFD166;
-      font-size: 1.35rem; cursor: pointer;
-    }
+    .draw-tools button.on { background: #FFD166; }
     .sent-pic-slot.on { border-style: solid; }
     .sent-pic-slot.what.on { border-color: #8E44AD; }
     .sent-pic-slot.where.on { border-color: #3498DB; }
@@ -392,9 +395,18 @@
     <button type="button" class="back-home" onclick="goHome()">← Home</button>
     <h2 style="margin:4px 0 8px;">I want to …</h2>
     <div class="sent-pics" id="sent-pics">
-      <div class="sent-pic-slot what" id="sent-pic-what"></div>
-      <div class="sent-pic-slot where" id="sent-pic-where"></div>
-      <div class="sent-pic-slot when" id="sent-pic-when"></div>
+      <div class="sent-pic-col">
+        <div class="draw-tools" id="tools-what"></div>
+        <div class="sent-pic-slot what" id="sent-pic-what"></div>
+      </div>
+      <div class="sent-pic-col">
+        <div class="draw-tools" id="tools-where"></div>
+        <div class="sent-pic-slot where" id="sent-pic-where"></div>
+      </div>
+      <div class="sent-pic-col">
+        <div class="draw-tools" id="tools-when"></div>
+        <div class="sent-pic-slot when" id="sent-pic-when"></div>
+      </div>
     </div>
     <div class="sent-line">
       <span>I want to</span>
@@ -912,6 +924,8 @@
           pic.innerHTML = "";
           pic.classList.remove("on", "pop");
         }
+        const tools = document.getElementById("tools-" + cat);
+        if (tools) { tools.innerHTML = ""; tools.classList.remove("show"); }
       });
       const full = document.getElementById("sent-full");
       if (full) full.textContent = "";
@@ -951,13 +965,19 @@
       slot.classList.add("filled");
       const pic = document.getElementById("sent-pic-" + cat);
       const thumb = cardThumb(c);
+      const tools = document.getElementById("tools-" + cat);
       if (thumb) {
         pic.innerHTML = thumb;
         pic.classList.add("on");
+        if (tools) { tools.innerHTML = ""; tools.classList.remove("show"); }
       } else {
-        pic.innerHTML = `<canvas class="draw-cv" width="320" height="180"></canvas><button type="button" class="draw-brush" aria-label="Draw">🖌️</button>`;
+        pic.innerHTML = `<canvas class="draw-cv" width="320" height="180"></canvas>`;
         pic.classList.remove("on");
-        setupDrawPad(pic);
+        if (tools) {
+          tools.innerHTML = `<button type="button" class="on" data-tool="draw" aria-label="Draw">🖌️</button><button type="button" data-tool="erase" aria-label="Erase">🧽</button>`;
+          tools.classList.add("show");
+        }
+        setupDrawPad(pic, tools);
       }
       pic.classList.remove("pop");
       void pic.offsetWidth;
@@ -965,7 +985,7 @@
       closePicker();
       updateSentFull();
     }
-    function setupDrawPad(pic) {
+    function setupDrawPad(pic, tools) {
       const cv = pic.querySelector("canvas");
       if (!cv) return;
       const r = pic.getBoundingClientRect();
@@ -974,14 +994,34 @@
       const ctx = cv.getContext("2d");
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = "#2C1810";
-      ctx.lineWidth = 4;
+      let mode = "draw";
       let drawing = false;
+      function applyMode() {
+        if (mode === "erase") {
+          ctx.globalCompositeOperation = "destination-out";
+          ctx.lineWidth = 16;
+        } else {
+          ctx.globalCompositeOperation = "source-over";
+          ctx.strokeStyle = "#2C1810";
+          ctx.lineWidth = 4;
+        }
+      }
+      applyMode();
+      if (tools) {
+        tools.querySelectorAll("button").forEach(btn => {
+          btn.onclick = () => {
+            mode = btn.dataset.tool;
+            tools.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+            applyMode();
+          };
+        });
+      }
       function pos(e) {
         const b = cv.getBoundingClientRect();
-        const x = (e.clientX - b.left) * (cv.width / b.width);
-        const y = (e.clientY - b.top) * (cv.height / b.height);
-        return { x, y };
+        return {
+          x: (e.clientX - b.left) * (cv.width / b.width),
+          y: (e.clientY - b.top) * (cv.height / b.height)
+        };
       }
       function inside(e) {
         const b = cv.getBoundingClientRect();
@@ -992,6 +1032,7 @@
         e.preventDefault();
         cv.setPointerCapture(e.pointerId);
         drawing = true;
+        applyMode();
         const p = pos(e);
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
